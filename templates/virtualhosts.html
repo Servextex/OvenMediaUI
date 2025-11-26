@@ -1,0 +1,171 @@
+{% extends "base.html" %}
+
+{% block title %}Virtual Hosts - OvenMediaEngine{% endblock %}
+
+{% block page_title %}Virtual Hosts{% endblock %}
+{% block page_description %}Manage OvenMediaEngine virtual hosts{% endblock %}
+
+{% block content %}
+<div style="margin-bottom: var(--space-xl);">
+    <button class="btn btn-primary" onclick="showCreateVHostModal()">
+        <i class="fas fa-plus"></i> Create Virtual Host
+    </button>
+</div>
+
+<div id="vhostsList">
+    <div class="flex items-center justify-center" style="padding: var(--space-2xl);">
+        <div class="spinner"></div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+    document.addEventListener('DOMContentLoaded', loadVirtualHosts);
+
+    async function loadVirtualHosts() {
+        const container = document.getElementById('vhostsList');
+        showLoading(container);
+
+        try {
+            const vhosts = await apiRequest('/virtualhosts/');
+
+            if (vhosts.length === 0) {
+                container.innerHTML = `
+                    <div class="card" style="text-align: center; padding: var(--space-2xl);">
+                        <i class="fas fa-network-wired" style="font-size: 3rem; color: var(--color-text-tertiary); margin-bottom: var(--space-md);"></i>
+                        <h3>No Virtual Hosts</h3>
+                        <p style="color: var(--color-text-tertiary);">Create your first virtual host to get started</p>
+                        <button class="btn btn-primary" onclick="showCreateVHostModal()" style="margin-top: var(--space-lg);">
+                            <i class="fas fa-plus"></i> Create Virtual Host
+                        </button>
+                    </div>
+                `;
+                return;
+            }
+
+            let html = '<div style="display: grid; grid-template-columns: repeat(auto-fill, minmax(350px, 1fr)); gap: var(--space-lg);">';
+
+            vhosts.forEach(vhost => {
+                const name = vhost.name || 'Unnamed';
+                const appCount = vhost.applications ? vhost.applications.length : 0;
+
+                html += `
+                    <div class="card card-glass">
+                        <div class="card-header">
+                            <h3 class="card-title">
+                                <i class="fas fa-network-wired"></i> ${name}
+                            </h3>
+                            <div style="display: flex; gap: var(--space-sm);">
+                                <button class="btn btn-sm btn-secondary" onclick="viewVHost('${name}')">
+                                    <i class="fas fa-eye"></i>
+                                </button>
+                                <button class="btn btn-sm btn-danger" onclick="deleteVHost('${name}')">
+                                    <i class="fas fa-trash"></i>
+                                </button>
+                            </div>
+                        </div>
+                        <div class="card-body">
+                            <div style="display: flex; justify-content: space-between; margin-bottom: var(--space-sm);">
+                                <span style="color: var(--color-text-tertiary);">Applications:</span>
+                                <span class="badge badge-info">${appCount}</span>
+                            </div>
+                            <div style="display: flex; justify-content: space-between;">
+                                <span style="color: var(--color-text-tertiary);">Status:</span>
+                                <span class="badge badge-success">Active</span>
+                            </div>
+                        </div>
+                    </div>
+                `;
+            });
+
+            html += '</div>';
+            container.innerHTML = html;
+
+        } catch (error) {
+            container.innerHTML = `
+                <div class="card" style="text-align: center; padding: var(--space-2xl);">
+                    <i class="fas fa-exclamation-circle" style="font-size: 3rem; color: var(--color-accent-error); margin-bottom: var(--space-md);"></i>
+                    <h3>Error Loading Virtual Hosts</h3>
+                    <p style="color: var(--color-accent-error);">${error.message}</p>
+                    <button class="btn btn-primary" onclick="loadVirtualHosts()" style="margin-top: var(--space-lg);">
+                        <i class="fas fa-sync-alt"></i> Retry
+                    </button>
+                </div>
+            `;
+        }
+    }
+
+    function showCreateVHostModal() {
+        const content = `
+            <form id="createVHostForm" onsubmit="createVHost(event)">
+                <div class="form-group">
+                    <label class="form-label">Virtual Host Name</label>
+                    <input type="text" class="form-input" name="name" required placeholder="e.g., default">
+                </div>
+                <div class="form-group">
+                    <label class="form-label">Host Names (comma separated)</label>
+                    <input type="text" class="form-input" name="hosts" placeholder="*">
+                </div>
+                <button type="submit" class="btn btn-primary" style="width: 100%;">
+                    <i class="fas fa-plus"></i> Create Virtual Host
+                </button>
+            </form>
+        `;
+
+        showModal('Create Virtual Host', content);
+    }
+
+    async function createVHost(event) {
+        event.preventDefault();
+        const form = event.target;
+        const formData = new FormData(form);
+
+        const hosts = formData.get('hosts').split(',').map(h => h.trim());
+
+        const vhostConfig = {
+            name: formData.get('name'),
+            host: {
+                names: hosts.length > 0 ? hosts : ['*']
+            }
+        };
+
+        try {
+            await apiRequest('/virtualhosts/', {
+                method: 'POST',
+                body: JSON.stringify(vhostConfig)
+            });
+
+            showToast('Virtual host created successfully', 'success');
+            loadVirtualHosts();
+            document.querySelector('.card').parentElement.remove(); // Close modal
+
+        } catch (error) {
+            showToast(error.message, 'error');
+        }
+    }
+
+    function viewVHost(name) {
+        window.location.href = `/applications?vhost=${name}`;
+    }
+
+    function deleteVHost(name) {
+        confirmAction(
+            `Are you sure you want to delete virtual host "${name}"? This action cannot be undone.`,
+            async function () {
+                try {
+                    await apiRequest(`/virtualhosts/${name}`, {
+                        method: 'DELETE'
+                    });
+
+                    showToast('Virtual host deleted successfully', 'success');
+                    loadVirtualHosts();
+
+                } catch (error) {
+                    showToast(error.message, 'error');
+                }
+            }
+        );
+    }
+</script>
+{% endblock %}

@@ -1,0 +1,253 @@
+{% extends "base.html" %}
+
+{% block title %}Dashboard - OvenMediaEngine{% endblock %}
+
+{% block page_title %}Dashboard{% endblock %}
+{% block page_description %}Real-time overview of your streaming server{% endblock %}
+
+{% block content %}
+<!-- Stats Grid -->
+<div
+    style="display: grid; grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); gap: var(--space-lg); margin-bottom: var(--space-xl);">
+    <!-- Server Status Card -->
+    <div class="card card-glass">
+        <div class="flex items-center justify-between">
+            <div>
+                <div style="font-size: 0.875rem; color: var(--color-text-tertiary); margin-bottom: var(--space-sm);">
+                    Server Status
+                </div>
+                <div style="font-size: 1.5rem; font-weight: 700;" id="serverStatus">
+                    <i class="fas fa-spinner fa-spin"></i>
+                </div>
+            </div>
+            <div style="font-size: 2.5rem; opacity:0.3;">
+                <i class="fas fa-server"></i>
+            </div>
+        </div>
+    </div>
+
+    <!-- Virtual Hosts Card -->
+    <div class="card card-glass">
+        <div class="flex items-center justify-between">
+            <div>
+                <div style="font-size: 0.875rem; color: var(--color-text-tertiary); margin-bottom: var(--space-sm);">
+                    Virtual Hosts
+                </div>
+                <div style="font-size: 1.5rem; font-weight: 700;" id="vhostCount">
+                    <i class="fas fa-spinner fa-spin"></i>
+                </div>
+            </div>
+            <div style="font-size: 2.5rem; opacity: 0.3;">
+                <i class="fas fa-network-wired"></i>
+            </div>
+        </div>
+    </div>
+
+    <!-- Active Streams Card -->
+    <div class="card card-glass">
+        <div class="flex items-center justify-between">
+            <div>
+                <div style="font-size: 0.875rem; color: var(--color-text-tertiary); margin-bottom: var(--space-sm);">
+                    Active Streams
+                </div>
+                <div style="font-size: 1.5rem; font-weight: 700;" id="streamCount">
+                    <i class="fas fa-spinner fa-spin"></i>
+                </div>
+            </div>
+            <div style="font-size: 2.5rem; opacity: 0.3;">
+                <i class="fas fa-play-circle"></i>
+            </div>
+        </div>
+    </div>
+
+    <!-- Applications Card -->
+    <div class="card card-glass">
+        <div class="flex items-center justify-between">
+            <div>
+                <div style="font-size: 0.875rem; color: var(--color-text-tertiary); margin-bottom: var(--space-sm);">
+                    Applications
+                </div>
+                <div style="font-size: 1.5rem; font-weight: 700;" id="appCount">
+                    <i class="fas fa-spinner fa-spin"></i>
+                </div>
+            </div>
+            <div style="font-size: 2.5rem; opacity: 0.3;">
+                <i class="fas fa-cube"></i>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Server Information -->
+<div class="card">
+    <div class="card-header">
+        <h2 class="card-title">Server Information</h2>
+        <button class="btn btn-sm btn-secondary" onclick="refreshServerInfo()">
+            <i class="fas fa-sync-alt"></i> Refresh
+        </button>
+    </div>
+    <div class="card-body">
+        <div id="serverInfo">
+            <div class="flex items-center justify-center" style="padding: var(--space-2xl);">
+                <div class="spinner"></div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Recent Activity -->
+<div class="card">
+    <div class="card-header">
+        <h2 class="card-title">Recent Activity</h2>
+        <a href="/monitoring" class="btn btn-sm btn-secondary">
+            View All <i class="fas fa-arrow-right"></i>
+        </a>
+    </div>
+    <div class="card-body">
+        <div id="recentActivity">
+            <div class="flex items-center justify-center" style="padding: var(--space-2xl);">
+                <div class="spinner"></div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+    // Load dashboard data on page load
+    document.addEventListener('DOMContentLoaded', function () {
+        loadDashboard();
+    });
+
+    async function loadDashboard() {
+        try {
+            // Check authentication
+            const token = localStorage.getItem('access_token');
+            if (!token) {
+                window.location.href = '/login';
+                return;
+            }
+
+            // Load server status
+            loadServerStatus();
+
+            // Load virtual hosts
+            loadVirtualHosts();
+
+            // Load recent activity
+            loadRecentActivity();
+
+        } catch (error) {
+            console.error('Error loading dashboard:', error);
+            showToast('Error loading dashboard data', 'error');
+        }
+    }
+
+    async function loadServerStatus() {
+        try {
+            const response = await apiRequest('/api/server/status');
+
+            if (response.api_connected) {
+                document.getElementById('serverStatus').innerHTML =
+                    '<span class="badge badge-success">Online</span>';
+            } else {
+                document.getElementById('serverStatus').innerHTML =
+                    '<span class="badge badge-error">Offline</span>';
+            }
+
+            // Display server info
+            const serverInfoHtml = `
+                <div class="table">
+                    <table style="width: 100%;">
+                        <tr>
+                            <td><strong>API URL</strong></td>
+                            <td>${response.api_url}</td>
+                        </tr>
+                        <tr>
+                            <td><strong>Connection Status</strong></td>
+                            <td>${response.api_connected ?
+                    '<span class="badge badge-success">Connected</span>' :
+                    '<span class="badge badge-error">Disconnected</span>'}
+                            </td>
+                        </tr>
+                    </table>
+                </div>
+            `;
+            document.getElementById('serverInfo').innerHTML = serverInfoHtml;
+
+        } catch (error) {
+            document.getElementById('serverStatus').innerHTML =
+                '<span class="badge badge-error">Error</span>';
+        }
+    }
+
+    async function loadVirtualHosts() {
+        try {
+            const vhosts = await apiRequest('/api/virtualhosts/');
+            document.getElementById('vhostCount').textContent = vhosts.length;
+
+            // Count total applications
+            let totalApps = 0;
+            for (const vhost of vhosts) {
+                if (vhost.applications) {
+                    totalApps += vhost.applications.length;
+                }
+            }
+            document.getElementById('appCount').textContent = totalApps;
+
+            // For now, set stream count to 0 (would need to query each app)
+            document.getElementById('streamCount').textContent = '0';
+
+        } catch (error) {
+            document.getElementById('vhostCount').textContent = 'N/A';
+            document.getElementById('appCount').textContent = 'N/A';
+            document.getElementById('streamCount').textContent = 'N/A';
+        }
+    }
+
+    async function loadRecentActivity() {
+        try {
+            const response = await apiRequest('/api/logs/audit?limit=10');
+            const logs = response.logs || [];
+
+            if (logs.length === 0) {
+                document.getElementById('recentActivity').innerHTML =
+                    '<p style="color: var(--color-text-tertiary); text-align: center;">No recent activity</p>';
+                return;
+            }
+
+            let html = '<div class="table"><table style="width: 100%;"><thead><tr>';
+            html += '<th>Time</th><th>User</th><th>Action</th><th>Resource</th><th>Status</th>';
+            html += '</tr></thead><tbody>';
+
+            logs.forEach(log => {
+                const time = new Date(log.timestamp).toLocaleString();
+                const statusBadge = log.status === 'success' ?
+                    '<span class="badge badge-success">Success</span>' :
+                    '<span class="badge badge-error">Failed</span>';
+
+                html += `<tr>
+                    <td>${time}</td>
+                    <td>User ${log.user_id}</td>
+                    <td>${log.action}</td>
+                    <td>${log.resource_type}</td>
+                    <td>${statusBadge}</td>
+                </tr>`;
+            });
+
+            html += '</tbody></table></div>';
+            document.getElementById('recentActivity').innerHTML = html;
+
+        } catch (error) {
+            document.getElementById('recentActivity').innerHTML =
+                '<p style="color: var(--color-accent-error); text-align: center;">Error loading activity</p>';
+        }
+    }
+
+    function refreshServerInfo() {
+        loadServerStatus();
+        showToast('Server info refreshed', 'success');
+    }
+</script>
+{% endblock %}

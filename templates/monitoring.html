@@ -1,0 +1,89 @@
+{% extends "base.html" %}
+
+{% block title %}Monitoring - OvenMediaEngine{% endblock %}
+
+{% block page_title %}Monitoring & Logs{% endblock %}
+{% block page_description %}View system logs and audit trail{% endblock %}
+
+{% block content %}
+<div class="card">
+    <div class="card-header">
+        <h2 class="card-title">Audit Logs</h2>
+        <div style="display: flex; gap: var(--space-md);">
+            <select id="actionFilter" class="form-select" onchange="loadAuditLogs()" style="width: auto;">
+                <option value="">All Actions</option>
+                <option value="login">Login</option>
+                <option value="create">Create</option>
+                <option value="update">Update</option>
+                <option value="delete">Delete</option>
+            </select>
+            <button class="btn btn-sm btn-secondary" onclick="loadAuditLogs()">
+                <i class="fas fa-sync-alt"></i> Refresh
+            </button>
+        </div>
+    </div>
+    <div class="card-body">
+        <div id="auditLogs">
+            <div class="flex items-center justify-center" style="padding: var(--space-2xl);">
+                <div class="spinner"></div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+    document.addEventListener('DOMContentLoaded', loadAuditLogs);
+
+    async function loadAuditLogs() {
+        const container = document.getElementById('auditLogs');
+        showLoading(container);
+
+        const action = document.getElementById('actionFilter').value;
+        const url = action ? `/logs/audit?action=${action}` : '/logs/audit';
+
+        try {
+            const response = await apiRequest(url);
+            const logs = response.logs || [];
+
+            if (logs.length === 0) {
+                container.innerHTML = '<p style="text-align: center; color: var(--color-text-tertiary);">No logs found</p>';
+                return;
+            }
+
+            let html = '<div class="table"><table style="width: 100%;"><thead><tr>';
+            html += '<th>Timestamp</th><th>User ID</th><th>Action</th><th>Resource</th><th>Status</th><th>Details</th>';
+            html += '</tr></thead><tbody>';
+
+            logs.forEach(log => {
+                const statusBadge = log.status === 'success' ?
+                    '<span class="badge badge-success">Success</span>' :
+                    '<span class="badge badge-error">Failed</span>';
+
+                html += `<tr>
+                    <td style="white-space: nowrap;">${formatDate(log.timestamp)}</td>
+                    <td>User ${log.user_id}</td>
+                    <td><code>${log.action}</code></td>
+                    <td>${log.resource_type}${log.resource_id ? ': ' + log.resource_id : ''}</td>
+                    <td>${statusBadge}</td>
+                    <td>${log.description || '-'}</td>
+                </tr>`;
+            });
+
+            html += '</tbody></table></div>';
+
+            html += `
+                <div style="margin-top: var(--space-lg); text-align: center; color: var(--color-text-tertiary);">
+                    Showing ${logs.length} of ${response.total} logs
+                </div>
+            `;
+
+            container.innerHTML = html;
+
+        } catch (error) {
+            container.innerHTML = `<p style="text-align: center; color: var(--color-accent-error);">Error: ${error.message}</p>`;
+        }
+    }
+</script>
+{% endblock %}
