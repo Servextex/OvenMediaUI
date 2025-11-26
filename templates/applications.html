@@ -1,0 +1,202 @@
+{% extends "base.html" %}
+
+{% block title %}Aplicaciones - OvenMediaEngine{% endblock %}
+
+{% block page_title %}Gestión de Aplicaciones{% endblock %}
+{% block page_description %}Administra las aplicaciones y streams de tus Virtual Hosts{% endblock %}
+
+{% block content %}
+<div class="row mb-4">
+    <div class="col-md-4">
+        <label class="form-label">Virtual Host</label>
+        <select id="vhostSelect" class="form-select" onchange="loadApplications()">
+            <option value="">Cargando...</option>
+        </select>
+    </div>
+    <div class="col-md-8" style="display: flex; align-items: flex-end; justify-content: flex-end;">
+        <button class="btn btn-primary" onclick="showCreateAppModal()">
+            <i class="fas fa-plus"></i> Nueva Aplicación
+        </button>
+    </div>
+</div>
+
+<div class="card">
+    <div class="card-body">
+        <div id="appsContainer">
+            <div class="text-center p-4">
+                <div class="spinner"></div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Modal Crear Aplicación -->
+<div id="createAppModal" style="display: none;">
+    <div class="form-group">
+        <label class="form-label">Nombre de la Aplicación</label>
+        <input type="text" id="newAppName" class="form-input" placeholder="app">
+    </div>
+    <div class="form-group">
+        <label class="form-label">Tipo</label>
+        <select id="newAppType" class="form-select">
+            <option value="live">Live</option>
+            <option value="vod">VOD</option>
+        </select>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+    let currentVHost = '';
+
+    document.addEventListener('DOMContentLoaded', loadVHosts);
+
+    async function loadVHosts() {
+        const select = document.getElementById('vhostSelect');
+        try {
+            const vhosts = await apiRequest('/virtualhosts/');
+
+            if (vhosts.length === 0) {
+                select.innerHTML = '<option value="">No hay Virtual Hosts</option>';
+                return;
+            }
+
+            select.innerHTML = vhosts.map(vh => `<option value="${vh.name || vh}">${vh.name || vh}</option>`).join('');
+
+            // Check URL param
+            const urlParams = new URLSearchParams(window.location.search);
+            const vhostParam = urlParams.get('vhost');
+
+            if (vhostParam && vhosts.some(v => (v.name || v) === vhostParam)) {
+                select.value = vhostParam;
+            } else {
+                select.value = vhosts[0].name || vhosts[0];
+            }
+
+            loadApplications();
+
+        } catch (error) {
+            select.innerHTML = '<option value="">Error cargando VHosts</option>';
+            showToast(error.message, 'error');
+        }
+    }
+
+    async function loadApplications() {
+        const select = document.getElementById('vhostSelect');
+        currentVHost = select.value;
+        if (!currentVHost) return;
+
+        const container = document.getElementById('appsContainer');
+        showLoading(container);
+
+        try {
+            const response = await apiRequest(`/applications/${currentVHost}/apps`);
+            // OME API returns { statusCode: 200, response: [ "app1", "app2" ] }
+            // Or sometimes objects depending on version. 
+            // Let's assume list of strings based on typical OME API.
+
+            const apps = response.response || response;
+
+            if (!Array.isArray(apps) || apps.length === 0) {
+                container.innerHTML = '<div class="text-center text-muted p-4">No hay aplicaciones en este Virtual Host</div>';
+                return;
+            }
+
+            container.innerHTML = `
+                <div class="table-responsive">
+                    <table class="table">
+                        <thead>
+                            <tr>
+                                <th>Nombre</th>
+                                <th>Tipo</th>
+                                <th>Acciones</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            ${apps.map(app => `
+                                <tr>
+                                    <td>
+                                        <div style="font-weight: 500;">${app.name || app}</div>
+                                    </td>
+                                    <td>
+                                        <span class="badge badge-primary">${app.type || 'Live'}</span>
+                                    </td>
+                                    <td>
+                                        <button class="btn btn-sm btn-secondary" onclick="viewAppDetails('${app.name || app}')">
+                                            <i class="fas fa-cog"></i> Configurar
+                                        </button>
+                                    </td>
+                                </tr>
+                            `).join('')}
+                        </tbody>
+                    </table>
+                </div>
+            `;
+
+        } catch (error) {
+            container.innerHTML = `<div class="text-center text-error p-4">Error: ${error.message}</div>`;
+        }
+    }
+
+    function showCreateAppModal() {
+        showModal('Nueva Aplicación', `
+            <div class="form-group">
+                <label class="form-label">Nombre</label>
+                <input type="text" id="appNameInput" class="form-input" placeholder="ej: app">
+            </div>
+            <div class="form-group">
+                <label class="form-label">Tipo</label>
+                <select id="appTypeInput" class="form-select">
+                    <option value="live">Live</option>
+                </select>
+            </div>
+        `, [
+            { text: 'Cancelar', class: 'btn-secondary' },
+            {
+                text: 'Crear',
+                class: 'btn-primary',
+                onClick: async () => {
+                    const name = document.getElementById('appNameInput').value;
+                    const type = document.getElementById('appTypeInput').value;
+
+                    if (!name) {
+                        showToast('El nombre es requerido', 'error');
+                        return;
+                    }
+
+                    try {
+                        await apiRequest(`/applications/${currentVHost}/apps`, {
+                            method: 'POST',
+                            body: JSON.stringify({ name, type })
+                        });
+                        showToast('Aplicación creada', 'success');
+                        loadApplications();
+                    } catch (error) {
+                        showToast(error.message, 'error');
+                    }
+                }
+            }
+        ]);
+    }
+
+    async function viewAppDetails(appName) {
+        try {
+            const details = await apiRequest(`/applications/${currentVHost}/apps/${appName}`);
+
+            showModal(`Configuración: ${appName}`, `
+                <div style="max-height: 400px; overflow: auto;">
+                    <pre style="background: #1e1e1e; color: #d4d4d4; padding: 1rem; border-radius: 4px;">${JSON.stringify(details, null, 2)}</pre>
+                </div>
+                <div class="alert alert-info mt-3">
+                    <i class="fas fa-info-circle"></i> La edición avanzada de aplicaciones se debe realizar en el archivo Server.xml por ahora.
+                </div>
+            `, [
+                { text: 'Cerrar', class: 'btn-secondary' }
+            ]);
+        } catch (error) {
+            showToast(error.message, 'error');
+        }
+    }
+</script>
+{% endblock %}

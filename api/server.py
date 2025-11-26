@@ -26,15 +26,18 @@ def get_config():
     Get current server configuration
     
     Returns:
-        Complete Server.xml as JSON
+        Complete Server.xml content
     """
     try:
         config_manager = get_config_manager()
-        config = config_manager.read_config()
+        # We need raw XML for the editor
+        with open(config_manager.xml_path, 'r') as f:
+            raw_xml = f.read()
+            
         server_info = config_manager.get_server_info()
         
         return jsonify({
-            'config': config,
+            'config': raw_xml,
             'server_info': server_info
         }), 200
         
@@ -53,7 +56,7 @@ def update_config():
     
     Request JSON:
         {
-            "config": {...},
+            "config": "xml string",
             "description": "string" (optional)
         }
     """
@@ -70,15 +73,17 @@ def update_config():
     
     try:
         config_manager = get_config_manager()
-        new_config = data['config']
+        new_config_xml = data['config']
         
-        # Validate configuration
-        is_valid, error = config_manager.validate_config(new_config)
+        # Validate XML structure
+        is_valid, error = XMLParser.validate_xml(new_config_xml)
         if not is_valid:
-            return jsonify({'error': f'Invalid configuration: {error}'}), 400
+            return jsonify({'error': f'Invalid XML: {error}'}), 400
         
         # Create snapshot before updating
-        old_config_xml = config_manager.create_snapshot("Before update")
+        with open(config_manager.xml_path, 'r') as f:
+            old_config_xml = f.read()
+            
         version = ConfigurationSnapshot.get_latest_version() + 1
         
         snapshot = ConfigurationSnapshot(
@@ -90,8 +95,9 @@ def update_config():
         )
         db.session.add(snapshot)
         
-        # Write new configuration
-        config_manager.write_config(new_config, backup=True)
+        # Write new configuration directly as file
+        with open(config_manager.xml_path, 'w') as f:
+            f.write(new_config_xml)
         
         # Commit snapshot
         db.session.commit()
@@ -114,19 +120,6 @@ def update_config():
     except Exception as e:
         db.session.rollback()
         current_app.logger.error(f"Error updating config: {str(e)}")
-        
-        # Log failed action
-        AuditLog.log_action(
-            user_id=user.id,
-            action=AuditLog.ACTION_UPDATE,
-            resource_type='server_config',
-            description='Failed to update configuration',
-            ip_address=request.remote_addr,
-            user_agent=request.headers.get('User-Agent'),
-            status='failure',
-            error_message=str(e)
-        )
-        
         return jsonify({'error': str(e)}), 500
 
 

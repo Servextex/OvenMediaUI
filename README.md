@@ -1,220 +1,313 @@
-# OvenMediaEngine Web UI
+# Documentación Completa del Proyecto OvenMediaUI
 
-Una interfaz web moderna e intuitiva para configurar y gestionar el servidor de streaming OvenMediaEngine.
+## Índice
+1. [Visión General del Sistema](#visión-general-del-sistema)
+2. [Arquitectura del Proyecto](#arquitectura-del-proyecto)
+3. [Estructura de Directorios](#estructura-de-directorios)
+4. [Patrones de Desarrollo](#patrones-de-desarrollo)
+5. [Componentes Principales](#componentes-principales)
+6. [Flujos de Trabajo](#flujos-de-trabajo)
+7. [Guías de Desarrollo](#guías-de-desarrollo)
+8. [APIs y Endpoints](#apis-y-endpoints)
+9. [Base de Datos](#base-de-datos)
+10. [Frontend y JavaScript](#frontend-y-javascript)
+11. [Seguridad](#seguridad)
+12. [Deployment y Configuración](#deployment-y-configuración)
 
-![OvenMediaEngine Web UI](https://img.shields.io/badge/Estado-Listo-success)
-![Python](https://img.shields.io/badge/Python-3.8+-blue)
-![Flask](https://img.shields.io/badge/Flask-3.0-green)
+---
 
-## Características
+## Visión General del Sistema
 
-✨ **Interfaz Moderna** - Hermoso tema oscuro con efectos glassmorphism y animaciones suaves  
-🔐 **Segura** - Autenticación JWT con control de acceso basado en roles (Admin, Operador, Visor)  
-📊 **Dashboard en Tiempo Real** - Monitorea el estado del servidor, streams y aplicaciones de un vistazo  
-🎛️ **Configuración Completa** - Gestiona todas las configuraciones de OvenMediaEngine mediante formularios intuitivos  
-📝 **Control de Versiones** - Snapshots de configuración con capacidad de rollback  
-🔍 **Registro de Auditoría** - Rastro completo de auditoría de todos los cambios de configuración  
-🚀 **REST API** - Comunicación con OvenMediaEngine vía su REST API  
-📱 **Responsive** - Funciona perfectamente en escritorio, tablet y móvil  
+**OvenMediaUI** es una interfaz web moderna e intuitiva desarrollada en **Python Flask** para configurar y gestionar el servidor de streaming **OvenMediaEngine**. El sistema permite:
 
-## Arquitectura
+- **Gestión de Configuración**: Edición visual de `Server.xml` con validación.
+- **Gestión de VirtualHosts**: Crear, editar y eliminar VHosts y Aplicaciones.
+- **Monitoreo**: Visualización de streams activos y estadísticas en tiempo real.
+- **Seguridad**: Autenticación JWT, roles de usuario y logs de auditoría.
+- **Configuración Centralizada**: Sistema de configuración almacenado en base de datos.
 
-### Backend (Flask)
-- **Modelos**: User, ConfigurationSnapshot, AuditLog
-- **Servicios**: Parser XML, Cliente API OME, Gestor de Configuración
-- **Blueprints API**: Auth, Server, VirtualHosts, Applications, Streams, Logs
+### Tecnologías Principales
+- **Backend**: Flask 3.0, Python 3.8+
+- **Base de Datos**: SQLite (SQLAlchemy ORM)
+- **Frontend**: HTML5, CSS3 (Diseño propio), JavaScript Vanilla
+- **Integración**: REST API de OvenMediaEngine, XML Parsing
+- **Seguridad**: Flask-JWT-Extended, Bcrypt
 
-### Frontend
-- **Sistema de Diseño**: CSS moderno con tokens de diseño
-- **Autenticación**: Autenticación segura basada en JWT
-- **UI Dinámica**: JavaScript vanilla con Fetch API
-- **Componentes**: Cards, Formularios, Tablas, Modales, Toasts
+---
 
-## Instalación
+## Arquitectura del Proyecto
 
-### Requisitos Previos
-- Python 3.8+
-- OvenMediaEngine instalado y ejecutándose
-- REST API de OvenMediaEngine habilitada
+### Patrón Arquitectónico
+El sistema sigue una **arquitectura modular basada en Flask Blueprints** con separación clara de responsabilidades:
+
+```
+┌─────────────────┐    ┌─────────────────┐    ┌─────────────────┐
+│   Frontend      │    │   Backend       │    │   Database      │
+│   (Templates +  │◄──►│   (Flask +      │◄──►│   (SQLite)      │
+│    JavaScript)  │    │    Blueprints)  │    │                 │
+└─────────────────┘    └─────────────────┘    └─────────────────┘
+         ▲                       ▲                       ▲
+         │                       │                       │
+┌─────────────────┐    ┌─────────────────┐    ┌─────────────────┐
+│   Static Files  │    │   Services      │    │   External      │
+│   (CSS, JS)     │    │   (OME Client,  │◄──►│   (OvenMedia    │
+│                 │    │    XML Parser)  │    │    Engine API)  │
+└─────────────────┘    └─────────────────┘    └─────────────────┘
+```
+
+### Principios de Diseño
+1. **Modularidad**: Cada funcionalidad (Auth, Server, VHosts) es un Blueprint independiente.
+2. **Servicios**: La lógica de negocio compleja (comunicación con OME, parsing XML) está aislada en servicios.
+3. **Configuración en BD**: La configuración de la app reside en la base de datos, no en archivos.
+4. **API First**: El frontend consume una API RESTful bien definida.
+
+---
+
+## Estructura de Directorios
+
+```
+OvenMediaUI/
+├── app.py                      # Aplicación principal Flask (Factory Pattern)
+├── config.py                   # Configuración del sistema (BD + Env fallback)
+├── requirements.txt            # Dependencias Python
+├── 
+├── models/                     # Modelos de datos (SQLAlchemy)
+│   ├── user.py                 # Usuarios y Roles
+│   ├── settings.py             # Configuración del sistema
+│   ├── audit.py                # Logs de auditoría
+│   └── configuration.py        # Snapshots de Server.xml
+├── 
+├── services/                   # Lógica de negocio
+│   ├── ome_client.py           # Cliente HTTP para API de OME
+│   ├── xml_parser.py           # Parser bidireccional XML <-> Dict
+│   └── config_manager.py       # Gestor de Server.xml y Snapshots
+├── 
+├── api/                        # Controladores (Blueprints)
+│   ├── auth.py                 # Autenticación
+│   ├── settings.py             # Gestión de configuración
+│   ├── server.py               # Configuración del servidor
+│   ├── virtualhosts.py         # Gestión de VHosts
+│   └── ...
+├── 
+├── templates/                  # Plantillas HTML (Jinja2)
+│   ├── base.html               # Layout principal
+│   ├── settings.html           # Página de configuración
+│   └── ...
+├── 
+└── static/                     # Archivos estáticos
+    ├── css/                    # Estilos (main.css)
+    └── js/                     # JavaScript (app.js)
+```
+
+---
+
+## Patrones de Desarrollo
+
+### 1. Patrón de Modelo (SQLAlchemy)
+
+**Estructura Estándar de Modelo:**
+```python
+# models/[Entidad].py
+from . import db
+
+class [Entidad](db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    # ... campos ...
+
+    def to_dict(self):
+        """Serialización a JSON"""
+        return {
+            'id': self.id,
+            # ...
+        }
+    
+    @classmethod
+    def get_by_id(cls, id):
+        return cls.query.get(id)
+```
+
+### 2. Patrón de Rutas (Blueprints)
+
+**Estructura Estándar de Ruta:**
+```python
+# api/[Entidad].py
+from flask import Blueprint, jsonify, request
+from flask_jwt_extended import jwt_required
+from models import [Entidad]
+
+bp = Blueprint('[entidad]', __name__)
+
+@bp.route('/', methods=['GET'])
+@jwt_required()
+def get_all():
+    items = [Entidad].query.all()
+    return jsonify([i.to_dict() for i in items])
+
+@bp.route('/', methods=['POST'])
+@jwt_required()
+def create():
+    data = request.get_json()
+    # ... lógica de creación ...
+    return jsonify(item.to_dict()), 201
+```
+
+### 3. Patrón de JavaScript
+
+**Estructura Estándar (`app.js`):**
+```javascript
+// Funciones asíncronas para comunicación API
+async function load[Entidad]() {
+    try {
+        const data = await apiRequest('/[entidad]/');
+        render[Entidad](data);
+    } catch (error) {
+        showToast(error.message, 'error');
+    }
+}
+
+// Renderizado dinámico
+function render[Entidad](items) {
+    const container = document.getElementById('container');
+    container.innerHTML = items.map(item => `
+        <div class="card">...</div>
+    `).join('');
+}
+```
+
+---
+
+## Componentes Principales
+
+### 1. Settings (Configuración)
+Gestiona la configuración de la aplicación almacenada en base de datos.
+- **Modelo**: `models/settings.py`
+- **API**: `api/settings.py`
+- **Características**: Categorización, encriptación de secretos, recarga en caliente.
+
+### 2. OMEClient
+Cliente HTTP wrapper para la REST API de OvenMediaEngine.
+- **Ubicación**: `services/ome_client.py`
+- **Funciones**: `get_vhosts()`, `create_app()`, `get_streams()`, etc.
+- **Manejo de Errores**: Captura excepciones de conexión y códigos de estado HTTP.
+
+### 3. XMLParser
+Utilidad para manipular el archivo `Server.xml`.
+- **Ubicación**: `services/xml_parser.py`
+- **Funciones**: `parse_file()`, `dict_to_xml()`, `validate_xml()`.
+- **Uso**: Convierte XML a diccionario Python para manipulación fácil y viceversa.
+
+---
+
+## Flujos de Trabajo
+
+### 1. Flujo de Actualización de Configuración
+```mermaid
+graph TD
+    A[Usuario edita configuración en Web] --> B[Clic en Guardar]
+    B --> C[API PUT /api/settings]
+    C --> D[Actualizar Base de Datos]
+    D --> E[Recargar Configuración en Memoria]
+    E --> F[Reinicializar OMEClient]
+    F --> G[Retornar Éxito]
+```
+
+### 2. Flujo de Autenticación
+```mermaid
+graph TD
+    A[Usuario ingresa credenciales] --> B[API POST /api/auth/login]
+    B --> C[Verificar Hash Password]
+    C -->|Válido| D[Generar JWT Token]
+    D --> E[Retornar Token + Info Usuario]
+    E --> F[Cliente guarda Token en LocalStorage]
+```
+
+---
+
+## Guías de Desarrollo
+
+### Crear Nuevo Módulo
+
+1. **Crear Modelo** (si requiere persistencia): `models/nuevo_modulo.py`
+2. **Crear Servicio** (si requiere lógica compleja): `services/nuevo_servicio.py`
+3. **Crear Blueprint API**: `api/nuevo_modulo.py`
+4. **Registrar Blueprint**: En `app.py`
+5. **Crear Template HTML**: `templates/nuevo_modulo.html`
+6. **Agregar Lógica JS**: En `static/js/app.js` o archivo separado.
+
+---
+
+## APIs y Endpoints
+
+### Autenticación
+- `POST /api/auth/login`: Iniciar sesión
+- `GET /api/auth/me`: Info usuario actual
 
 ### Configuración
+- `GET /api/settings/`: Listar configuraciones
+- `PUT /api/settings/`: Actualizar configuraciones
+- `POST /api/settings/reload`: Recargar configuración
 
-1. **Clonar el repositorio**
-```bash
-cd /Volumes/DatosApp/Proyects/OvenMediaUI
-```
+### Server & VHosts
+- `GET /api/server/config`: Leer Server.xml
+- `GET /api/virtualhosts/`: Listar VHosts
+- `POST /api/virtualhosts/`: Crear VHost
 
-2. **Crear entorno virtual**
-```bash
-python3 -m venv venv
-source venv/bin/activate  # En Mac/Linux
-# venv\Scripts\activate  # En Windows
-```
+---
 
-3. **Instalar dependencias**
+## Base de Datos
+
+### Esquema (SQLite)
+
+**Tablas Principales:**
+- `users`: Usuarios y roles (Admin, Operator, Viewer).
+- `settings`: Configuración clave-valor del sistema.
+- `audit_logs`: Registro histórico de acciones.
+- `configuration_snapshots`: Versiones de respaldo de Server.xml.
+
+---
+
+## Frontend y JavaScript
+
+### Estructura
+- **CSS**: `static/css/main.css` - Sistema de diseño propio (Dark Theme, Glassmorphism).
+- **JS**: `static/js/app.js` - Lógica SPA, manejo de API, modales, notificaciones.
+
+### Librerías
+- **Font Awesome**: Iconos.
+- **Inter Font**: Tipografía.
+- **No jQuery**: Todo es Vanilla JS moderno (ES6+).
+
+---
+
+## Seguridad
+
+- **JWT**: Tokens de acceso con expiración configurable.
+- **RBAC**: Control de acceso basado en roles en cada endpoint.
+- **Audit Logging**: Todo cambio crítico queda registrado.
+- **Secret Management**: Las claves sensibles en BD se ocultan en la API.
+
+---
+
+## Deployment y Configuración
+
+### Instalación Simplificada
+
+1. **Instalar Dependencias**:
 ```bash
 pip install -r requirements.txt
 ```
 
-4. **Configurar variables de entorno**
-```bash
-cp .env.example .env
-# Editar .env con tus configuraciones
-```
-
-Variables de entorno requeridas:
-- `OME_SERVER_XML_PATH`: Ruta a Server.xml (default: `/usr/share/ovenmediaengine/conf/Server.xml`)
-- `OME_API_URL`: URL de la API de OvenMediaEngine (default: `http://localhost:8081`)
-- `OME_API_ACCESS_TOKEN`: Token de acceso para la API de OME
-- `SECRET_KEY`: Clave secreta de Flask (¡cambiar en producción!)
-- `JWT_SECRET_KEY`: Clave secreta JWT (¡cambiar en producción!)
-
-5. **Inicializar base de datos**
+2. **Ejecutar Aplicación**:
 ```bash
 python app.py
 ```
+*La base de datos y configuraciones se inicializan automáticamente.*
 
-Esto hará:
-- Crear la base de datos SQLite
-- Crear las tablas
-- Agregar usuario admin por defecto (usuario: `admin`, contraseña: `admin123`)
+3. **Configurar**:
+Acceder a `http://localhost:5000` (Admin/admin123) y configurar desde el menú **Configuración**.
 
-6. **Ejecutar la aplicación**
+### Producción
+Usar Gunicorn:
 ```bash
-# Desarrollo
-python app.py
-
-# Producción (con Gunicorn)
 gunicorn -w 4 -b 0.0.0.0:5000 app:app
 ```
-
-7. **Acceder a la interfaz**
-Abre tu navegador y navega a `http://localhost:5000`
-
-Credenciales por defecto:
-- Usuario: `admin`
-- Contraseña: `admin123`
-
-⚠️ **IMPORTANTE**: ¡Cambia la contraseña por defecto inmediatamente después del primer login!
-
-## Uso
-
-### Dashboard
-- Ver estado del servidor y estadísticas
-- Monitorear streams y aplicaciones activas
-- Revisar logs de actividad reciente
-
-### Configuración del Servidor
-- Ver y editar configuración Server.xml
-- Crear snapshots de configuración
-- Revertir a configuraciones previas
-- Validar cambios antes de aplicar
-
-### Virtual Hosts
-- Crear, actualizar y eliminar virtual hosts
-- Configurar nombres de host y ajustes
-- Ver aplicaciones dentro de cada virtual host
-
-### Aplicaciones
-- Gestionar aplicaciones de streaming
-- Configurar providers (RTMP, WebRTC, etc.)
-- Configurar publishers y streams de salida
-
-### Monitoreo
-- Ver logs de auditoría con filtros
-- Rastrear cambios de configuración
-- Monitorear actividad de usuarios
-
-## Seguridad
-
-### Autenticación
-- Autenticación basada en JWT
-- Gestión de sesiones
-- Renovación automática de tokens
-
-### Autorización
-Tres roles de usuario con diferentes permisos:
-- **Admin**: Acceso completo incluyendo gestión de usuarios
-- **Operador**: Acceso de lectura y escritura a configuraciones
-- **Visor**: Acceso solo de lectura
-
-### Rastro de Auditoría
-Todas las acciones se registran con:
-- Identificación del usuario
-- Marca de tiempo
-- Tipo de acción
-- Recurso afectado
-- Dirección IP y user agent
-
-## Desarrollo
-
-### Estructura del Proyecto
-```
-OvenMediaUI/
-├── app.py                 # Aplicación principal Flask
-├── config.py              # Configuraciones
-├── requirements.txt       # Dependencias Python
-├── models/                # Modelos de base de datos
-│   ├── user.py
-│   ├── configuration.py
-│   └── audit.py
-├── services/              # Lógica de negocio
-│   ├── xml_parser.py
-│   ├── ome_client.py
-│   └── config_manager.py
-├── api/                   # Blueprints API
-│   ├── auth.py
-│   ├── server.py
-│   ├── virtualhosts.py
-│   ├── applications.py
-│   ├── streams.py
-│   └── logs.py
-├── templates/             # Plantillas HTML
-│   ├── base.html
-│   ├── index.html
-│   ├── login.html
-│   ├── virtualhosts.html
-│   └── monitoring.html
-└── static/                # Recursos estáticos
-    ├── css/
-    │   └── main.css
-    └── js/
-        └── app.js
-```
-
-### Ejecutar Pruebas
-```bash
-pytest tests/ -v --cov=.
-```
-
-## Despliegue con Docker
-
-```bash
-docker build -t ome-web-ui .
-docker run -d -p 5000:5000 \
-  -e OME_API_URL=http://tu-servidor-ome:8081 \
-  -e OME_API_ACCESS_TOKEN=tu_token \
-  ome-web-ui
-```
-
-## Contribuir
-
-¡Las contribuciones son bienvenidas! No dudes en enviar un Pull Request.
-
-## Licencia
-
-Licencia MIT - ver archivo LICENSE para detalles
-
-## Soporte
-
-Para problemas y preguntas:
-- Abre un issue en GitHub
-- Consulta la documentación de OvenMediaEngine: https://docs.ovenmediaengine.com/
-
-## Créditos
-
-Construido con:
-- [Flask](https://flask.palletsprojects.com/) - Framework web
-- [OvenMediaEngine](https://github.com/AirenSoft/OvenMediaEngine) - Servidor de streaming
-- [Font Awesome](https://fontawesome.com/) - Iconos
-- [Inter Font](https://rsms.me/inter/) - Tipografía

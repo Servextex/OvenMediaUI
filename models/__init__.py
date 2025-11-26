@@ -9,5 +9,6 @@ db = SQLAlchemy()
 from .user import User
 from .configuration import ConfigurationSnapshot
 from .audit import AuditLog
+from .settings import Settings
 
-__all__ = ['db', 'User', 'ConfigurationSnapshot', 'AuditLog']
+__all__ = ['db', 'User', 'ConfigurationSnapshot', 'AuditLog', 'Settings']

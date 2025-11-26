@@ -3,8 +3,9 @@ User model for authentication and authorization
 """
 from datetime import datetime
 from flask_login import UserMixin
-from flask_bcrypt import generate_password_hash, check_password_hash
 from . import db
+import bcrypt
+from typing import Optional
 
 
 class User(UserMixin, db.Model):
@@ -35,12 +36,12 @@ class User(UserMixin, db.Model):
         return f'<User {self.username}>'
     
     def set_password(self, password):
-        """Hash and set the user's password"""
-        self.password_hash = generate_password_hash(password).decode('utf-8')
+        """Hash and set user password"""
+        self.password_hash = bcrypt.hashpw(password.encode('utf-8'), bcrypt.gensalt()).decode('utf-8')
     
     def check_password(self, password):
-        """Verify the user's password"""
-        return check_password_hash(self.password_hash, password)
+        """Check if provided password matches hash"""
+        return bcrypt.checkpw(password.encode('utf-8'), self.password_hash.encode('utf-8'))
     
     def has_permission(self, permission):
         """Check if user has specific permission based on role"""

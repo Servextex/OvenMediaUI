@@ -1,23 +1,25 @@
 <!DOCTYPE html>
 <html lang="es">
+
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>{% block title %}OvenMediaEngine Web UI{% endblock %}</title>
-    
+
     <!-- Google Fonts -->
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
-    
+
     <!-- Font Awesome for Icons -->
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
-    
+
     <!-- Main CSS -->
     <link rel="stylesheet" href="{{ url_for('static', filename='css/main.css') }}">
-    
+
     {% block extra_css %}{% endblock %}
 </head>
+
 <body>
     <div class="app-container">
         {% if not hide_sidebar %}
@@ -28,39 +30,44 @@
                     <i class="fas fa-broadcast-tower"></i> OvenMediaEngine
                 </div>
             </div>
-            
+
             <nav class="sidebar-nav">
                 <a href="/" class="nav-item {% if request.path == '/' %}active{% endif %}">
                     <i class="fas fa-home nav-icon"></i>
                     <span>Dashboard</span>
                 </a>
-                
+
                 <a href="/server" class="nav-item {% if request.path == '/server' %}active{% endif %}">
                     <i class="fas fa-server nav-icon"></i>
                     <span>Server Config</span>
                 </a>
-                
+
                 <a href="/virtualhosts" class="nav-item {% if request.path == '/virtualhosts' %}active{% endif %}">
                     <i class="fas fa-network-wired nav-icon"></i>
                     <span>Virtual Hosts</span>
                 </a>
-                
+
                 <a href="/applications" class="nav-item {% if request.path == '/applications' %}active{% endif %}">
-                 <i class="fas fa-cube nav-icon"></i>
+                    <i class="fas fa-cube nav-icon"></i>
                     <span>Applications</span>
                 </a>
-                
+
                 <a href="/transcoding" class="nav-item {% if request.path == '/transcoding' %}active{% endif %}">
                     <i class="fas fa-film nav-icon"></i>
                     <span>Transcoding</span>
                 </a>
-                
+
                 <a href="/monitoring" class="nav-item {% if request.path == '/monitoring' %}active{% endif %}">
                     <i class="fas fa-chart-line nav-icon"></i>
                     <span>Monitoring</span>
                 </a>
+
+                <a href="/settings" class="nav-item {% if request.path == '/settings' %}active{% endif %}">
+                    <i class="fas fa-cog nav-icon"></i>
+                    <span>Configuración</span>
+                </a>
             </nav>
-            
+
             <div class="sidebar-footer" style="padding: var(--space-lg); border-top: 1px solid var(--color-border);">
                 <div class="nav-item" onclick="logout()">
                     <i class="fas fa-sign-out-alt nav-icon"></i>
@@ -69,7 +76,7 @@
             </div>
         </aside>
         {% endif %}
-        
+
         <!-- Main Content -->
         <main class="main-content">
             {% if not hide_header %}
@@ -78,17 +85,18 @@
                 <p style="color: var(--color-text-tertiary);">{% block page_description %}{% endblock %}</p>
             </div>
             {% endif %}
-            
+
             {% block content %}{% endblock %}
         </main>
     </div>
-    
+
     <!-- Toast Container -->
     <div class="toast-container" id="toastContainer"></div>
-    
+
     <!-- Main JavaScript -->
     <script src="{{ url_for('static', filename='js/app.js') }}"></script>
-    
+
     {% block extra_js %}{% endblock %}
 </body>
+
 </html>

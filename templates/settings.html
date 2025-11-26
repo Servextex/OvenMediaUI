@@ -1,0 +1,219 @@
+{% extends "base.html" %}
+
+{% block title %}Configuración - OvenMediaEngine{% endblock %}
+
+{% block page_title %}Configuración del Sistema{% endblock %}
+{% block page_description %}Gestiona todas las configuraciones desde la interfaz web{% endblock %}
+
+{% block content %}
+<div class="card">
+    <div class="card-header">
+        <h2 class="card-title">
+            <i class="fas fa-cog"></i> Configuraciones
+        </h2>
+        <div style="display: flex; gap: var(--space-md);">
+            <button class="btn btn-primary" onclick="saveAllSettings()">
+                <i class="fas fa-save"></i> Guardar Cambios
+            </button>
+            <button class="btn btn-secondary" onclick="reloadSettings()">
+                <i class="fas fa-sync-alt"></i> Recargar
+            </button>
+        </div>
+    </div>
+    <div class="card-body">
+        <div id="settingsContainer">
+            <div class="flex items-center justify-center" style="padding: var(--space-2xl);">
+                <div class="spinner"></div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="card" style="margin-top: var(--space-lg);">
+    <div class="card-header">
+        <h3 class="card-title">
+            <i class="fas fa-info-circle"></i> Información
+        </h3>
+    </div>
+    <div class="card-body">
+        <p style="color: var(--color-text-secondary);">
+            Todas las configuraciones se guardan en la base de datos. Ya no necesitas editar archivos .env manualmente.
+        </p>
+        <p style="color: var(--color-text-secondary); margin-top: var(--space-md);">
+            Después de guardar cambios, las configuraciones se aplicarán automáticamente.
+            Los cambios relacionados con OvenMediaEngine (URL, token) requieren que el servidor OME esté configurado
+            correctamente.
+        </p>
+        <div
+            style="margin-top: var(--space-lg); padding: var(--space-md); background: rgba(245, 158, 11, 0.1); border-left: 3px solid var(--color-accent-warning); border-radius: var(--radius-md);">
+            <strong style="color: var(--color-accent-warning);">
+                <i class="fas fa-exclamation-triangle"></i> Importante:
+            </strong>
+            <p style="color: var(--color-text-secondary); margin-top: var(--space-sm);">
+                Los campos marcados como "secretos" (tokens, claves) se ocultan automáticamente. Solo los
+                administradores pueden ver y editar estos valores.
+            </p>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+    let allSettings = {};
+    let changedSettings = {};
+
+    document.addEventListener('DOMContentLoaded', loadSettings);
+
+    async function loadSettings() {
+        const container = document.getElementById('settingsContainer');
+        showLoading(container);
+
+        try {
+            const categories = await apiRequest('/settings/');
+            allSettings = categories;
+
+            renderSettings(categories);
+        } catch (error) {
+            container.innerHTML = `
+                <p style="text-align: center; color: var(--color-accent-error);">
+                    Error cargando configuraciones: ${error.message}
+                </p>
+            `;
+        }
+    }
+
+    function renderSettings(categories) {
+        const container = document.getElementById('settingsContainer');
+
+        const categoryTitles = {
+            'general': 'General',
+            'ome': 'OvenMediaEngine',
+            'security': 'Seguridad',
+            'database': 'Base de Datos'
+        };
+
+        const categoryIcons = {
+            'general': 'fa-sliders-h',
+            'ome': 'fa-broadcast-tower',
+            'security': 'fa-shield-alt',
+            'database': 'fa-database'
+        };
+
+        let html = '';
+
+        for (const [category, settings] of Object.entries(categories)) {
+            const title = categoryTitles[category] || category;
+            const icon = categoryIcons[category] || 'fa-cog';
+
+            html += `
+                <div style="margin-bottom: var(--space-xl);">
+                    <h3 style="margin-bottom: var(--space-lg); color: var(--color-text-primary);">
+                        <i class="fas ${icon}"></i> ${title}
+                    </h3>
+                    <div style="display: grid; gap: var(--space-lg);">
+            `;
+
+            settings.forEach(setting => {
+                html += `
+                    <div class="form-group">
+                        <label class="form-label">
+                            ${formatKey(setting.key)}
+                            ${setting.is_secret ? '<span class="badge badge-warning" style="margin-left: var(--space-sm);">Secreto</span>' : ''}
+                        </label>
+                        ${setting.description ? `<div style="font-size: 0.875rem; color: var(--color-text-tertiary); margin-bottom: var(--space-sm);">${setting.description}</div>` : ''}
+                        ${renderInput(setting)}
+                    </div>
+                `;
+            });
+
+            html += `
+                    </div>
+                </div>
+            `;
+        }
+
+        container.innerHTML = html;
+    }
+
+    function formatKey(key) {
+        return key.split('_')
+            .map(word => word.charAt(0).toUpperCase() + word.slice(1))
+            .join(' ');
+    }
+
+    function renderInput(setting) {
+        const isSecret = setting.is_secret && setting.value === '***HIDDEN***';
+        const value = isSecret ? '' : (setting.value || '');
+        const placeholder = isSecret ? 'No modificar a menos que desee cambiar' : '';
+
+        return `
+            <input 
+                type="${setting.is_secret ? 'password' : 'text'}" 
+                class="form-input" 
+                id="setting_${setting.key}"
+                data-key="${setting.key}"
+                value="${value}"
+                placeholder="${placeholder}"
+                onchange="markChanged('${setting.key}')"
+            >
+        `;
+    }
+
+    function markChanged(key) {
+        const input = document.getElementById(`setting_${key}`);
+        changedSettings[key] = input.value;
+        input.style.borderColor = 'var(--color-accent-warning)';
+    }
+
+    async function saveAllSettings() {
+        if (Object.keys(changedSettings).length === 0) {
+            showToast('No hay cambios para guardar', 'info');
+            return;
+        }
+
+        const settingsArray = Object.entries(changedSettings).map(([key, value]) => ({
+            key,
+            value
+        }));
+
+        try {
+            const response = await apiRequest('/settings/', {
+                method: 'PUT',
+                body: JSON.stringify({ settings: settingsArray })
+            });
+
+            showToast(response.message || 'Configuraciones guardadas', 'success');
+            changedSettings = {};
+
+            // Reset border colors
+            Object.keys(changedSettings).forEach(key => {
+                const input = document.getElementById(`setting_${key}`);
+                if (input) input.style.borderColor = '';
+            });
+
+            // Reload settings from server
+            setTimeout(() => {
+                loadSettings();
+            }, 1000);
+
+        } catch (error) {
+            showToast(`Error guardando configuraciones: ${error.message}`, 'error');
+        }
+    }
+
+    async function reloadSettings() {
+        try {
+            await apiRequest('/settings/reload', { method: 'POST' });
+            showToast('Configuraciones recargadas exitosamente', 'success');
+
+            setTimeout(() => {
+                loadSettings();
+            }, 500);
+
+        } catch (error) {
+            showToast(`Error recargando configuraciones: ${error.message}`, 'error');
+        }
+    }
+</script>
+{% endblock %}

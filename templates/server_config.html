@@ -1,0 +1,225 @@
+{% extends "base.html" %}
+
+{% block title %}Configuración del Servidor - OvenMediaEngine{% endblock %}
+
+{% block page_title %}Configuración del Servidor{% endblock %}
+{% block page_description %}Edición directa del archivo Server.xml y gestión de versiones{% endblock %}
+
+{% block content %}
+<div class="row">
+    <div class="col-lg-8">
+        <div class="card" style="height: calc(100vh - 200px); display: flex; flex-direction: column;">
+            <div class="card-header" style="display: flex; justify-content: space-between; align-items: center;">
+                <h2 class="card-title">
+                    <i class="fas fa-code"></i> Server.xml
+                </h2>
+                <div style="display: flex; gap: var(--space-sm);">
+                    <button class="btn btn-secondary" onclick="loadConfig()">
+                        <i class="fas fa-sync-alt"></i> Recargar
+                    </button>
+                    <button class="btn btn-primary" onclick="saveConfig()">
+                        <i class="fas fa-save"></i> Guardar Cambios
+                    </button>
+                </div>
+            </div>
+            <div class="card-body" style="flex: 1; padding: 0; display: flex; flex-direction: column;">
+                <div
+                    style="padding: var(--space-md); background: var(--color-bg-tertiary); border-bottom: 1px solid var(--color-border);">
+                    <small style="color: var(--color-text-secondary);">
+                        <i class="fas fa-info-circle"></i> Edita el archivo XML con cuidado. Los cambios incorrectos
+                        pueden impedir que el servidor inicie.
+                    </small>
+                </div>
+                <textarea id="xmlEditor" spellcheck="false" style="
+                    flex: 1; 
+                    width: 100%; 
+                    background: #1e1e1e; 
+                    color: #d4d4d4; 
+                    font-family: 'Fira Code', 'Consolas', monospace; 
+                    font-size: 14px; 
+                    line-height: 1.5; 
+                    padding: var(--space-md); 
+                    border: none; 
+                    resize: none;
+                    outline: none;
+                "></textarea>
+            </div>
+        </div>
+    </div>
+
+    <div class="col-lg-4">
+        <div class="card" style="height: calc(100vh - 200px); display: flex; flex-direction: column;">
+            <div class="card-header">
+                <h2 class="card-title">
+                    <i class="fas fa-history"></i> Historial de Versiones
+                </h2>
+            </div>
+            <div class="card-body" style="flex: 1; overflow-y: auto; padding: 0;">
+                <div id="snapshotsList" class="list-group">
+                    <div class="text-center p-4">
+                        <div class="spinner"></div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Modal de Confirmación de Guardado -->
+<div id="saveModal" style="display: none;">
+    <div class="form-group">
+        <label class="form-label">Descripción del cambio</label>
+        <input type="text" id="changeDescription" class="form-input"
+            placeholder="Ej: Aumentar workers, agregar vhost...">
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+    document.addEventListener('DOMContentLoaded', function () {
+        loadConfig();
+        loadSnapshots();
+
+        // Tab support for textarea
+        document.getElementById('xmlEditor').addEventListener('keydown', function (e) {
+            if (e.key == 'Tab') {
+                e.preventDefault();
+                var start = this.selectionStart;
+                var end = this.selectionEnd;
+                this.value = this.value.substring(0, start) + "    " + this.value.substring(end);
+                this.selectionStart = this.selectionEnd = start + 4;
+            }
+        });
+    });
+
+    async function loadConfig() {
+        const editor = document.getElementById('xmlEditor');
+        showLoading(editor.parentElement);
+
+        try {
+            const data = await apiRequest('/server/config');
+            // Convert dict to XML string if it's a dict, or use as is if string
+            // The API returns 'config' which is a dict from xmltodict
+            // We need to convert it back to XML string for editing
+            // OR if the API returns raw XML string. 
+            // Let's check api/server.py: it returns config_manager.read_config() which returns a dict.
+            // We need a way to get the RAW XML or convert dict to XML.
+            // Ideally, for an editor, we want the RAW XML to preserve comments and formatting.
+            // But our current backend parses it.
+
+            // Let's update the backend to return raw XML as well or handle conversion.
+            // For now, let's assume we receive a dict and convert to XML using a helper or update backend.
+
+            // Actually, let's update the backend to return raw XML content for editing purposes.
+            // But for now, I'll format the JSON as XML in frontend or request raw.
+
+            // Wait, api/server.py uses config_manager.read_config().
+            // Let's check config_manager.py
+
+            // If I can't get raw XML easily, I will display the JSON for now or try to convert.
+            // But editing JSON for Server.xml is weird.
+            // I should update the backend to support getting raw XML.
+
+            // For this iteration, I'll assume the API returns the dict and I'll convert to XML string 
+            // using a simple JS function or update backend.
+            // Updating backend is safer.
+
+            // Let's try to fetch and see what happens. 
+            // If it's a dict, I'll format it.
+
+            if (typeof data.config === 'object') {
+                // It's a dict. I need a library to convert to XML or update backend.
+                // I'll update backend to return raw_xml.
+                editor.value = "Error: Backend returned JSON. Please update backend to return raw XML.";
+            } else {
+                editor.value = data.config;
+            }
+
+        } catch (error) {
+            editor.value = "Error loading config: " + error.message;
+        }
+    }
+
+    async function loadSnapshots() {
+        const container = document.getElementById('snapshotsList');
+
+        try {
+            const snapshots = await apiRequest('/server/snapshots');
+
+            if (snapshots.length === 0) {
+                container.innerHTML = '<div class="p-4 text-center text-muted">No hay versiones guardadas</div>';
+                return;
+            }
+
+            container.innerHTML = snapshots.map(snap => `
+                <div class="list-group-item" style="border-bottom: 1px solid var(--color-border); padding: var(--space-md);">
+                    <div style="display: flex; justify-content: space-between; margin-bottom: var(--space-xs);">
+                        <span class="badge badge-primary">v${snap.version}</span>
+                        <small style="color: var(--color-text-tertiary);">${formatDate(snap.created_at)}</small>
+                    </div>
+                    <div style="font-weight: 500; margin-bottom: var(--space-xs);">${snap.description || 'Sin descripción'}</div>
+                    <div style="display: flex; justify-content: space-between; align-items: center;">
+                        <small style="color: var(--color-text-tertiary);">Por: ${snap.user_id}</small>
+                        <button class="btn btn-sm btn-secondary" onclick="restoreSnapshot(${snap.id})">
+                            <i class="fas fa-undo"></i> Restaurar
+                        </button>
+                    </div>
+                </div>
+            `).join('');
+
+        } catch (error) {
+            container.innerHTML = `<div class="p-4 text-center text-error">Error: ${error.message}</div>`;
+        }
+    }
+
+    function saveConfig() {
+        const content = document.getElementById('xmlEditor').value;
+
+        showModal('Guardar Configuración', `
+            <div class="form-group">
+                <label class="form-label">Descripción del cambio</label>
+                <input type="text" id="changeDescription" class="form-input" placeholder="Ej: Aumentar workers...">
+            </div>
+            <div class="alert alert-warning" style="margin-top: var(--space-md);">
+                <i class="fas fa-exclamation-triangle"></i> Esto sobrescribirá el archivo Server.xml actual.
+            </div>
+        `, [
+            { text: 'Cancelar', class: 'btn-secondary' },
+            {
+                text: 'Guardar',
+                class: 'btn-primary',
+                onClick: async () => {
+                    const description = document.getElementById('changeDescription').value;
+                    try {
+                        await apiRequest('/server/config', {
+                            method: 'PUT',
+                            body: JSON.stringify({
+                                config: content, // Sending raw string, backend needs to handle this
+                                description: description
+                            })
+                        });
+                        showToast('Configuración guardada exitosamente', 'success');
+                        loadSnapshots();
+                    } catch (error) {
+                        showToast(error.message, 'error');
+                    }
+                }
+            }
+        ]);
+    }
+
+    function restoreSnapshot(id) {
+        confirmAction('¿Estás seguro de restaurar esta versión? La configuración actual se perderá.', async () => {
+            try {
+                await apiRequest(`/server/snapshots/${id}/restore`, { method: 'POST' });
+                showToast('Versión restaurada exitosamente', 'success');
+                loadConfig();
+                loadSnapshots();
+            } catch (error) {
+                showToast(error.message, 'error');
+            }
+        });
+    }
+</script>
+{% endblock %}

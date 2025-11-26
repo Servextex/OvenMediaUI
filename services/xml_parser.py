@@ -2,8 +2,8 @@
 XML Parser for OvenMediaEngine Server.xml configuration
 Provides bidirectional conversion between XML and Python dictionaries
 """
+import xml.dom.minidom
 import xmltodict
-from lxml import etree
 from typing import Dict, Any, Optional
 
 

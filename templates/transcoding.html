@@ -1,0 +1,145 @@
+{% extends "base.html" %}
+
+{% block title %}Transcodificación - OvenMediaEngine{% endblock %}
+
+{% block page_title %}Perfiles de Transcodificación{% endblock %}
+{% block page_description %}Gestión de perfiles de codificación para Adaptive Bitrate Streaming (ABR){% endblock %}
+
+{% block content %}
+<div class="row">
+    <div class="col-lg-12">
+        <div class="card">
+            <div class="card-header">
+                <h2 class="card-title">
+                    <i class="fas fa-layer-group"></i> Configuración de Transcodificación
+                </h2>
+            </div>
+            <div class="card-body">
+                <div class="alert alert-warning">
+                    <i class="fas fa-exclamation-triangle"></i>
+                    La configuración de transcodificación en OvenMediaEngine se define dentro del bloque
+                    <code>&lt;Publish&gt;</code> en <code>Server.xml</code>.
+                    Actualmente no hay una API REST para modificar esto dinámicamente sin editar el XML.
+                </div>
+
+                <h3 style="margin-top: var(--space-lg); margin-bottom: var(--space-md);">Generador de Snippet XML</h3>
+                <p style="color: var(--color-text-secondary); margin-bottom: var(--space-lg);">
+                    Utiliza esta herramienta para generar el bloque XML necesario y pégalo en el editor de <a
+                        href="/server">Configuración del Servidor</a>.
+                </p>
+
+                <div class="row">
+                    <div class="col-md-6">
+                        <div class="form-group">
+                            <label class="form-label">Codec de Video</label>
+                            <select id="videoCodec" class="form-select">
+                                <option value="h264">H.264 (AVC)</option>
+                                <option value="h265">H.265 (HEVC)</option>
+                                <option value="vp8">VP8</option>
+                                <option value="vp9">VP9</option>
+                                <option value="bypass">Bypass (Sin transcodificar)</option>
+                            </select>
+                        </div>
+
+                        <div class="form-group">
+                            <label class="form-label">Bitrate (kbps)</label>
+                            <input type="number" id="videoBitrate" class="form-input" value="2000">
+                        </div>
+
+                        <div class="form-group">
+                            <label class="form-label">Resolución</label>
+                            <div style="display: flex; gap: var(--space-sm);">
+                                <input type="number" id="width" class="form-input" placeholder="Width" value="1280">
+                                <span style="align-self: center;">x</span>
+                                <input type="number" id="height" class="form-input" placeholder="Height" value="720">
+                            </div>
+                        </div>
+
+                        <div class="form-group">
+                            <label class="form-label">Framerate</label>
+                            <input type="number" id="framerate" class="form-input" value="30">
+                        </div>
+
+                        <div class="form-group">
+                            <label class="form-label">Codec de Audio</label>
+                            <select id="audioCodec" class="form-select">
+                                <option value="aac">AAC</option>
+                                <option value="opus">Opus</option>
+                                <option value="bypass">Bypass</option>
+                            </select>
+                        </div>
+
+                        <button class="btn btn-primary" style="width: 100%; margin-top: var(--space-md);"
+                            onclick="generateXml()">
+                            <i class="fas fa-magic"></i> Generar XML
+                        </button>
+                    </div>
+
+                    <div class="col-md-6">
+                        <div class="form-group" style="height: 100%;">
+                            <label class="form-label">Resultado XML</label>
+                            <textarea id="xmlOutput" class="form-input"
+                                style="height: calc(100% - 30px); font-family: monospace;" readonly></textarea>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+    function generateXml() {
+        const vCodec = document.getElementById('videoCodec').value;
+        const vBitrate = document.getElementById('videoBitrate').value;
+        const width = document.getElementById('width').value;
+        const height = document.getElementById('height').value;
+        const framerate = document.getElementById('framerate').value;
+        const aCodec = document.getElementById('audioCodec').value;
+
+        let xml = `<Encodes>\n`;
+
+        // Video
+        if (vCodec !== 'bypass') {
+            xml += `    <Video>\n`;
+            xml += `        <Name>video_${vBitrate}k</Name>\n`;
+            xml += `        <Codec>${vCodec}</Codec>\n`;
+            xml += `        <Bitrate>${vBitrate}000</Bitrate>\n`;
+            xml += `        <Width>${width}</Width>\n`;
+            xml += `        <Height>${height}</Height>\n`;
+            xml += `        <Framerate>${framerate}</Framerate>\n`;
+            xml += `    </Video>\n`;
+        } else {
+            xml += `    <Video>\n`;
+            xml += `        <Name>video_bypass</Name>\n`;
+            xml += `        <Codec>bypass</Codec>\n`;
+            xml += `    </Video>\n`;
+        }
+
+        // Audio
+        if (aCodec !== 'bypass') {
+            xml += `    <Audio>\n`;
+            xml += `        <Name>audio_${aCodec}</Name>\n`;
+            xml += `        <Codec>${aCodec}</Codec>\n`;
+            xml += `        <Bitrate>128000</Bitrate>\n`;
+            xml += `        <Samplerate>48000</Samplerate>\n`;
+            xml += `        <Channel>2</Channel>\n`;
+            xml += `    </Audio>\n`;
+        } else {
+            xml += `    <Audio>\n`;
+            xml += `        <Name>audio_bypass</Name>\n`;
+            xml += `        <Codec>bypass</Codec>\n`;
+            xml += `    </Audio>\n`;
+        }
+
+        xml += `</Encodes>`;
+
+        document.getElementById('xmlOutput').value = xml;
+    }
+
+    // Generate default on load
+    document.addEventListener('DOMContentLoaded', generateXml);
+</script>
+{% endblock %}

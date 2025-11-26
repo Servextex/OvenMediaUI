@@ -1,0 +1,13 @@
+{% extends "base.html" %}
+
+{% block title %}Error del Servidor{% endblock %}
+
+{% block content %}
+<div style="text-align: center; padding: 4rem 0;">
+    <h1 style="font-size: 4rem; color: var(--color-accent-error); margin-bottom: 1rem;">500</h1>
+    <h2 style="margin-bottom: 1rem;">Error Interno del Servidor</h2>
+    <p style="color: var(--color-text-secondary); margin-bottom: 2rem;">Algo salió mal. Por favor intenta de nuevo más
+        tarde.</p>
+    <a href="/" class="btn btn-primary">Volver al Inicio</a>
+</div>
+{% endblock %}

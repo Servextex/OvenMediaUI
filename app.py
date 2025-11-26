@@ -21,6 +21,7 @@ from api.virtualhosts import virtualhosts_bp
 from api.applications import applications_bp
 from api.streams import streams_bp
 from api.logs import logs_bp
+from api.settings import settings_bp
 
 def create_app(config_name=None):
     """Application factory pattern"""
@@ -30,6 +31,9 @@ def create_app(config_name=None):
     
     app = Flask(__name__)
     app.config.from_object(config[config_name])
+    
+    # Store config class for later reinitialization
+    app.config.init_app = config[config_name].init_app
     
     # Initialize extensions
     db.init_app(app)
@@ -49,16 +53,23 @@ def create_app(config_name=None):
     app.register_blueprint(applications_bp, url_prefix='/api/applications')
     app.register_blueprint(streams_bp, url_prefix='/api/streams')
     app.register_blueprint(logs_bp, url_prefix='/api/logs')
+    app.register_blueprint(settings_bp, url_prefix='/api/settings')
     
-    # Initialize OME client as app extension
-    @app.before_first_request
-    def initialize():
-        """Initialize on first request"""
-        app.ome_client = OMEClient(
-            app.config['OME_API_URL'],
-            app.config['OME_API_ACCESS_TOKEN']
-        )
-        app.logger.info("OME Client initialized")
+    # Initialize settings in a temporary context
+    with app.app_context():
+        try:
+            # Initialize settings from database  
+            config[config_name].init_app(app)
+            
+            # Initialize OME client with settings from DB
+            app.ome_client = OMEClient(
+                app.config.get('OME_API_URL', 'http://localhost:8081'),
+                app.config.get('OME_API_ACCESS_TOKEN', '')
+            )
+            app.logger.info("Application initialized with database settings")
+        except:
+            # If DB not ready, use defaults
+            app.ome_client = OMEClient('http://localhost:8081', '')
     
     # User loader for Flask-Login
     @login_manager.user_loader
@@ -101,6 +112,11 @@ def create_app(config_name=None):
         """Monitoring and logs page"""
         return render_template('monitoring.html')
     
+    @app.route('/settings')
+    def app_settings():
+        """Application settings page"""
+        return render_template('settings.html')
+    
     # Error handlers
     @app.errorhandler(404)
     def not_found(error):
@@ -120,30 +136,31 @@ def create_app(config_name=None):
 
 
 def setup_logging(app):
-    """Setup application logging"""
-    log_level = getattr(logging, app.config['LOG_LEVEL'])
-    
-    # Console handler
-    console_handler = logging.StreamHandler()
-    console_handler.setLevel(log_level)
-    console_formatter = logging.Formatter(
-        '[%(asctime)s] %(levelname)s in %(module)s: %(message)s'
-    )
-    console_handler.setFormatter(console_formatter)
-    
-    # File handler
-    log_dir = os.path.dirname(app.config['LOG_FILE'])
-    if log_dir and not os.path.exists(log_dir):
-        os.makedirs(log_dir)
-    
-    file_handler = logging.FileHandler(app.config['LOG_FILE'])
-    file_handler.setLevel(log_level)
-    file_handler.setFormatter(console_formatter)
-    
-    # Add handlers
-    app.logger.addHandler(console_handler)
-    app.logger.addHandler(file_handler)
-    app.logger.setLevel(log_level)
+    """Configure logging for the application"""
+    if not app.debug:
+        # Create logs directory if it doesn't exist
+        log_dir = 'logs'
+        if not os.path.exists(log_dir):
+            os.makedirs(log_dir)
+        
+        # Get log level from config with fallback
+        log_level = getattr(logging, app.config.get('LOG_LEVEL', 'INFO'))
+        
+        # File handler
+        file_handler = logging.handlers.RotatingFileHandler(
+            app.config.get('LOG_FILE', 'logs/app.log'),
+            maxBytes=10240000,  # 10MB
+            backupCount=10
+        )
+        file_handler.setLevel(log_level)
+        file_handler.setFormatter(logging.Formatter(
+            '%(asctime)s %(levelname)s: %(message)s [in %(pathname)s:%(lineno)d]'
+        ))
+        
+        app.logger.addHandler(file_handler)
+        app.logger.setLevel(log_level)
+        app.logger.info('OvenMediaEngine Web UI startup')
+
 
 
 # CLI commands
