@@ -1,0 +1,26 @@
+venv/
+.env
+VsJs
+*.VsJs
+*.raiz
+*.servex
+.DS_Store
+*.pyc
+.todo
+ClavePersonal
+sctk
+conexion.db
+__pycache__/
+
+instance/
+dist/
+build/
+flask_session/
+Log/
+Temp/
+.venv/
+.ropeproject/
+*.zip
+# Environment files
+*.env
+*.env.*
